@@ -16,15 +16,175 @@ model User {
   username String  @unique
   name     String?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
   image       UserImage?
   password    Password?
-  notes       Note[]
   roles       Role[]
   sessions    Session[]
   connections Connection[]
+  notes       Note[]
+  reviews     UsersReviews[]
+
+  createdBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model UsersReviews {
+  user   User   @relation(fields: [userId], references: [id])
+  userId String
+  book   Book   @relation(fields: [bookId], references: [id])
+  bookId String
+
+  rating   Int
+  review   String
+  dateRead DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@id([userId, bookId])
+}
+
+model Author {
+  id   String  @id @default(cuid())
+  name String?
+
+  images AuthorImage[]
+
+  books  AuthorsBooks[]
+  series AuthorsSeries[]
+  notes  NotesOnAuthors[]
+
+  createdBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AuthorImage {
+  id          String  @id @default(cuid())
+  altText     String?
+  contentType String
+  blob        Bytes
+
+  author   Author @relation(fields: [authorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  authorId String
+
+  createdBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // non-unique foreign key
+  @@index([authorId])
+}
+
+model Book {
+  id          String @id @default(cuid())
+  title       String
+  description String
+
+  series   Series? @relation(fields: [seriesId], references: [id])
+  seriesId String?
+
+  authors AuthorsBooks[]
+  tags    TagsOnBooks[]
+  images  BookImage[]
+  notes   NotesOnBooks[]
+  reviews UsersReviews[]
+
+  createdBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model BookImage {
+  id          String  @id @default(cuid())
+  altText     String?
+  contentType String
+  blob        Bytes
+
+  book   Book   @relation(fields: [bookId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  bookId String
+
+  createdBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // non-unique foreign key
+  @@index([bookId])
+}
+
+model Series {
+  id   String @id @default(cuid())
+  name String
+
+  books Book[]
+
+  tags    TagsOnSeries[]
+  authors AuthorsSeries[]
+  notes   NotesOnSeries[]
+
+  createdBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AuthorsBooks {
+  author   Author @relation(fields: [authorId], references: [id])
+  authorId String
+  books    Book   @relation(fields: [booksId], references: [id])
+  booksId  String
+
+  assignedBy String
+  assignedAt DateTime @default(now())
+
+  @@id([authorId, booksId])
+}
+
+model AuthorsSeries {
+  author   Author @relation(fields: [authorId], references: [id])
+  authorId String
+  series   Series @relation(fields: [seriesId], references: [id])
+  seriesId String
+
+  assignedBy String
+  assignedAt DateTime @default(now())
+
+  @@id([authorId, seriesId])
+}
+
+model Tag {
+  id           String         @id @default(cuid())
+  name         String
+  tagsOnBooks  TagsOnBooks[]
+  tagsOnSeries TagsOnSeries[]
+
+  createdBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model TagsOnBooks {
+  tag    Tag    @relation(fields: [tagId], references: [id])
+  tagId  String
+  book   Book   @relation(fields: [bookId], references: [id])
+  bookId String
+
+  assignedBy String
+  assignedAt DateTime @default(now())
+
+  @@id([tagId, bookId])
+}
+
+model TagsOnSeries {
+  tag      Tag    @relation(fields: [tagId], references: [id])
+  tagId    String
+  series   Series @relation(fields: [seriesId], references: [id])
+  seriesId String
+
+  assignedBy String
+  assignedAt DateTime @default(now())
+
+  @@id([tagId, seriesId])
 }
 
 model Note {
@@ -32,13 +192,17 @@ model Note {
   title   String
   content String
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
   owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   ownerId String
 
   images NoteImage[]
+
+  notesOnAuthors NotesOnAuthors[]
+  notesOnBooks   NotesOnBooks[]
+  notesOnSeries  NotesOnSeries[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // non-unique foreign key
   @@index([ownerId])
@@ -52,14 +216,51 @@ model NoteImage {
   contentType String
   blob        Bytes
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
   note   Note   @relation(fields: [noteId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   noteId String
 
+  createdBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // non-unique foreign key
   @@index([noteId])
+}
+
+model NotesOnAuthors {
+  note     Note   @relation(fields: [noteId], references: [id])
+  noteId   String
+  author   Author @relation(fields: [authorId], references: [id])
+  authorId String
+
+  assignedBy String
+  assignedAt DateTime @default(now())
+
+  @@id([noteId, authorId])
+}
+
+model NotesOnBooks {
+  note   Note   @relation(fields: [noteId], references: [id])
+  noteId String
+  book   Book   @relation(fields: [bookId], references: [id])
+  bookId String
+
+  assignedBy String
+  assignedAt DateTime @default(now())
+
+  @@id([noteId, bookId])
+}
+
+model NotesOnSeries {
+  note     Note   @relation(fields: [noteId], references: [id])
+  noteId   String
+  series   Series @relation(fields: [seriesId], references: [id])
+  seriesId String
+
+  assignedBy String
+  assignedAt DateTime @default(now())
+
+  @@id([noteId, seriesId])
 }
 
 model UserImage {
@@ -68,11 +269,12 @@ model UserImage {
   contentType String
   blob        Bytes
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   userId String @unique
+
+  createdBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Password {
@@ -86,11 +288,11 @@ model Session {
   id             String   @id @default(cuid())
   expirationDate DateTime
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   userId String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // non-unique foreign key
   @@index([userId])
@@ -103,10 +305,10 @@ model Permission {
   access      String // e.g. own or any
   description String @default("")
 
+  roles Role[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  roles Role[]
 
   @@unique([action, entity, access])
 }
@@ -116,11 +318,11 @@ model Role {
   name        String @unique
   description String @default("")
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
   users       User[]
   permissions Permission[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Verification {
@@ -159,11 +361,11 @@ model Connection {
   providerName String
   providerId   String
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   userId String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([providerName, providerId])
 }
