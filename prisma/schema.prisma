@@ -24,7 +24,7 @@ model User {
   notes       Note[]
   reviews     UsersReviews[]
 
-  createdBy String
+  // createdBy String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -46,9 +46,11 @@ model UsersReviews {
 }
 
 model Author {
-  id   String  @id @default(cuid())
-  name String?
+  id        String @id @default(cuid())
+  fullName  String
+  lastFirst String
 
+  links  Link[]
   images AuthorImage[]
 
   books  AuthorsBooks[]
@@ -77,13 +79,37 @@ model AuthorImage {
   @@index([authorId])
 }
 
+model Link {
+  id     String @id @default(cuid())
+  source String
+  url    String
+
+  author   Author? @relation(fields: [authorId], references: [id])
+  authorId String?
+  book     Book?   @relation(fields: [bookId], references: [id])
+  bookId   String?
+  series   Series? @relation(fields: [seriesId], references: [id])
+  seriesId String?
+}
+
 model Book {
   id          String @id @default(cuid())
   title       String
   description String
 
-  series   Series? @relation(fields: [seriesId], references: [id])
-  seriesId String?
+  isbn          String?
+  isbn13        String?
+  asin          String?
+  pages         Int?
+  avgRating     Decimal
+  numRatings    Int
+  datePublished DateTime?
+
+  links Link[]
+
+  series         Series? @relation(fields: [seriesId], references: [id])
+  seriesId       String?
+  seriesSequence String?
 
   authors AuthorsBooks[]
   tags    TagsOnBooks[]
@@ -117,6 +143,7 @@ model Series {
   id   String @id @default(cuid())
   name String
 
+  links Link[]
   books Book[]
 
   tags    TagsOnSeries[]
@@ -219,7 +246,7 @@ model NoteImage {
   note   Note   @relation(fields: [noteId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   noteId String
 
-  createdBy String
+  // createdBy String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -272,7 +299,6 @@ model UserImage {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   userId String @unique
 
-  createdBy String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
