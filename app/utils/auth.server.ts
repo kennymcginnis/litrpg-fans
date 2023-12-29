@@ -54,6 +54,7 @@ export async function requireUserId(
 			redirectTo === null
 				? null
 				: redirectTo ?? `${requestUrl.pathname}${requestUrl.search}`
+		console.error({ redirectTo })
 		const loginParams = redirectTo ? new URLSearchParams({ redirectTo }) : null
 		const loginRedirect = ['/login', loginParams?.toString()]
 			.filter(Boolean)

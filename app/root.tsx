@@ -56,6 +56,7 @@ import { type Theme, setTheme, getTheme } from './utils/theme.server.ts'
 import { makeTimings, time } from './utils/timing.server.ts'
 import { getToast } from './utils/toast.server.ts'
 import { useOptionalUser, useUser } from './utils/user.ts'
+import { MainNav } from './components/main-nav.tsx'
 
 export const links: LinksFunction = () => {
 	return [
@@ -215,7 +216,10 @@ function Document({
 						__html: `window.ENV = ${JSON.stringify(env)}`,
 					}}
 				/>
-				<ScrollRestoration nonce={nonce} />
+				<ScrollRestoration
+					nonce={nonce}
+					// getKey={location => location.pathname}
+				/>
 				<Scripts nonce={nonce} />
 				<LiveReload nonce={nonce} />
 			</body>
@@ -230,21 +234,21 @@ function App() {
 	const theme = useTheme()
 	const matches = useMatches()
 	const isOnSearchPage = matches.find(m => m.id === 'routes/users+/index')
-	const searchBar = isOnSearchPage ? null : <SearchBar status="idle" />
+	const searchBar = isOnSearchPage ? null : (
+		<SearchBar formAction="/users" status="idle" />
+	)
 
 	return (
 		<Document nonce={nonce} theme={theme} env={data.ENV}>
 			<div className="flex h-screen flex-col justify-between">
-				<header className="container py-6">
-					<nav>
+				<header className="container sticky top-0 my-3 rounded-lg py-4 text-neutral-600 shadow-lg hover:text-neutral-700 focus:text-neutral-700 dark:bg-neutral-600 dark:text-neutral-200">
+					<nav data-te-navbar-ref>
 						<div className="flex flex-wrap items-center justify-between gap-4 sm:flex-nowrap md:gap-8">
-							<Link to="/">
-								<div className="font-light">epic</div>
-								<div className="font-bold">notes</div>
-							</Link>
-							<div className="ml-auto hidden max-w-sm flex-1 sm:block">
+							<MainNav className="mx-6" />
+
+							{/* <div className="ml-auto hidden max-w-sm flex-1 sm:block">
 								{searchBar}
-							</div>
+							</div> */}
 							<div className="flex items-center gap-10">
 								{user ? (
 									<UserDropdown />
@@ -318,14 +322,14 @@ function UserDropdown() {
 			<DropdownMenuPortal>
 				<DropdownMenuContent sideOffset={8} align="start">
 					<DropdownMenuItem asChild>
-						<Link prefetch="intent" to={`/users/${user.username}`}>
+						<Link prefetch="intent" to={`/user/${user.username}`}>
 							<Icon className="text-body-md" name="avatar">
 								Profile
 							</Icon>
 						</Link>
 					</DropdownMenuItem>
 					<DropdownMenuItem asChild>
-						<Link prefetch="intent" to={`/users/${user.username}/notes`}>
+						<Link prefetch="intent" to={`/user/${user.username}/notes`}>
 							<Icon className="text-body-md" name="pencil-2">
 								Notes
 							</Icon>

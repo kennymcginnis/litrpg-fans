@@ -1,7 +1,10 @@
+import { readdirSync } from 'fs'
+import { join, extname, basename } from 'path'
 import { faker } from '@faker-js/faker'
 import { promiseHash } from 'remix-utils/promise'
 import { prisma } from '#app/utils/db.server.ts'
 import {
+	bookImg,
 	cleanupDb,
 	createPassword,
 	createUser,
@@ -11,96 +14,181 @@ import {
 } from '#tests/db-utils.ts'
 import { insertGitHubUser } from '#tests/mocks/github.ts'
 
-async function seed() {
-	console.log('🌱 Seeding...')
-	console.time(`🌱 Database has been seeded`)
+import authors from './data/authors'
+import books from './data/books'
+import kickstart from './data/kickstart'
+import series from './data/series'
+import { boolean } from 'zod'
 
-	console.time('🧹 Cleaned up the database...')
-	await cleanupDb(prisma)
-	console.timeEnd('🧹 Cleaned up the database...')
-
-	console.time('🔑 Created permissions...')
-	const entities = ['user', 'note']
-	const actions = ['create', 'read', 'update', 'delete']
-	const accesses = ['own', 'any'] as const
-	for (const entity of entities) {
-		for (const action of actions) {
-			for (const access of accesses) {
-				await prisma.permission.create({ data: { entity, action, access } })
-			}
-		}
-	}
-	console.timeEnd('🔑 Created permissions...')
-
-	console.time('👑 Created roles...')
-	await prisma.role.create({
-		data: {
-			name: 'admin',
-			permissions: {
-				connect: await prisma.permission.findMany({
-					select: { id: true },
-					where: { access: 'any' },
-				}),
-			},
-		},
-	})
-	await prisma.role.create({
-		data: {
-			name: 'user',
-			permissions: {
-				connect: await prisma.permission.findMany({
-					select: { id: true },
-					where: { access: 'own' },
-				}),
-			},
-		},
-	})
-	console.timeEnd('👑 Created roles...')
-
-	const totalUsers = 5
-	console.time(`👤 Created ${totalUsers} users...`)
-	const noteImages = await getNoteImages()
-	const userImages = await getUserImages()
-
-	for (let index = 0; index < totalUsers; index++) {
-		const userData = createUser()
-		await prisma.user
-			.create({
-				select: { id: true },
-				data: {
-					...userData,
-					password: { create: createPassword(userData.username) },
-					image: { create: userImages[index % userImages.length] },
-					roles: { connect: { name: 'user' } },
-					notes: {
-						create: Array.from({
-							length: faker.number.int({ min: 1, max: 3 }),
-						}).map(() => ({
-							title: faker.lorem.sentence(),
-							content: faker.lorem.paragraphs(),
-							images: {
-								create: Array.from({
-									length: faker.number.int({ min: 1, max: 3 }),
-								}).map(() => {
-									const imgNumber = faker.number.int({ min: 0, max: 9 })
-									return noteImages[imgNumber]
-								}),
-							},
-						})),
+async function seedAuthors() {
+	console.time('🔑 Created authors...')
+	let authorsMapped: any = {}
+	for (const { lastFirst, fullName, authorId, link } of authors) {
+		authorsMapped[authorId] = await prisma.author.create({
+			data: {
+				id: authorId,
+				fullName,
+				lastFirst,
+				links: {
+					create: {
+						source: 'Goodreads',
+						url: link,
 					},
 				},
-			})
-			.catch(e => {
-				console.error('Error creating a user:', e)
-				return null
-			})
+			},
+		})
 	}
-	console.timeEnd(`👤 Created ${totalUsers} users...`)
+	console.timeEnd('🔑 Created authors...')
+	return authorsMapped
+}
 
+async function seedSeries(doDelete: boolean = false) {
+	console.time('🔑 Created series...')
+
+	if (doDelete) await prisma.$executeRawUnsafe(`DELETE from "Series"`)
+
+	let seriesMapped: any = {}
+	for (const { seriesId, name, authorId, rating, reviews, link } of series) {
+		// console.dir(authorsMapped[authorId])
+		seriesMapped[seriesId] = await prisma.series.create({
+			data: {
+				id: seriesId,
+				name,
+				rating: {
+					create: {
+						rating,
+						reviews,
+					},
+				},
+				links: {
+					create: {
+						source: 'Goodreads',
+						url: link,
+					},
+				},
+				authors: {
+					create: [
+						{
+							//  authorId: authorsMapped[authorId].id,
+							authorId,
+						},
+					],
+				},
+			},
+		})
+	}
+	console.timeEnd('🔑 Created series...')
+	return seriesMapped
+}
+
+async function seedBooks(seriesMapped: any) {
+	console.time('🔑 Created books...')
+
+	let booksMappedById: any = {}
+	let booksMappedByGRNo: any = {}
+	for (const {
+		bookId,
+		title,
+		description,
+		authorId,
+		isbn,
+		isbn13,
+		asin,
+		pages,
+		avgRating,
+		numRatings,
+		datePublished,
+		grno,
+		seriesSequence,
+		seriesId,
+		link,
+	} of books) {
+		//  Optional series
+		let series =
+			seriesId && seriesMapped[seriesId]
+				? {
+						series: {
+							//  connect: { id: seriesMapped[seriesId].id },
+							connect: { id: seriesId },
+						},
+				  }
+				: null
+
+		const book = await prisma.book.create({
+			data: {
+				id: bookId,
+				title,
+				description,
+				isbn,
+				isbn13,
+				asin,
+				pages,
+				datePublished,
+				grno,
+				seriesSequence,
+				rating: {
+					create: {
+						rating: avgRating,
+						reviews: numRatings,
+					},
+				},
+				links: {
+					create: {
+						source: 'Goodreads',
+						url: link,
+					},
+				},
+				authors: {
+					create: [
+						{
+							authorId,
+						},
+					],
+				},
+				...series,
+			},
+		})
+		booksMappedById[bookId] = book
+		booksMappedByGRNo[book.grno] = book
+	}
+
+	console.timeEnd('🔑 Created books...')
+	return booksMappedById
+}
+
+async function seedKickstart() {
+	console.time(`🐨 Created admin user "kickstart"`)
+	await prisma.user
+		.create({
+			select: { id: true },
+			data: {
+				email: 'kenneth.j.mcginnis@gmail.com',
+				username: 'kickstart',
+				name: 'Ken McGinnis',
+				password: { create: createPassword('thefuture') },
+				roles: { connect: [{ name: 'admin' }, { name: 'user' }] },
+				reviews: {
+					create: kickstart.map(({ bookId, rating, dateRead }) => ({
+						bookId,
+						rating,
+						dateRead,
+					})),
+				},
+			},
+		})
+		.catch(e => {
+			console.error('Error creating a user:', e)
+			return null
+		})
+	console.timeEnd(`🐨 Created admin user "kickstart"`)
+}
+
+async function seedKody() {
 	console.time(`🐨 Created admin user "kody"`)
-
 	const kodyImages = await promiseHash({
-		kodyUser: img({ filepath: './tests/fixtures/images/user/kody.png' }),
+		kodyUser: img({
+			filepath: './tests/fixtures/images/user/kody.png',
+		}),
 		cuteKoala: img({
 			altText: 'an adorable koala cartoon illustration',
 			filepath: './tests/fixtures/images/kody-notes/cute-koala.png',
@@ -233,7 +321,7 @@ async function seed() {
 						content:
 							"Joined a local conservation group to protect koalas and their habitats. Together, we're planting more eucalyptus trees, raising awareness about their endangered status, and working towards a sustainable future for these adorable creatures. Every small step counts!",
 					},
-					// extra long note to test scrolling
+					//  extra long note to test scrolling
 					{
 						id: 'f67ca40b',
 						title: 'Game day',
@@ -248,6 +336,168 @@ async function seed() {
 		},
 	})
 	console.timeEnd(`🐨 Created admin user "kody"`)
+}
+
+async function seedUsers() {
+	const totalUsers = 5
+	console.time(`👤 Created ${totalUsers} users...`)
+	const noteImages = await getNoteImages()
+	const userImages = await getUserImages()
+
+	for (let index = 0; index < totalUsers; index++) {
+		const userData = createUser()
+		await prisma.user
+			.create({
+				select: { id: true },
+				data: {
+					...userData,
+					password: { create: createPassword(userData.username) },
+					image: { create: userImages[index % userImages.length] },
+					roles: { connect: { name: 'user' } },
+					notes: {
+						create: Array.from({
+							length: faker.number.int({ min: 1, max: 3 }),
+						}).map(() => ({
+							title: faker.lorem.sentence(),
+							content: faker.lorem.paragraphs(),
+							images: {
+								create: Array.from({
+									length: faker.number.int({ min: 1, max: 3 }),
+								}).map(() => {
+									const imgNumber = faker.number.int({ min: 0, max: 9 })
+									return noteImages[imgNumber]
+								}),
+							},
+						})),
+					},
+				},
+			})
+			.catch(e => {
+				console.error('Error creating a user:', e)
+				return null
+			})
+	}
+	console.timeEnd(`👤 Created ${totalUsers} users...`)
+}
+
+async function seedRoles() {
+	console.time('👑 Created roles...')
+	await prisma.role.create({
+		data: {
+			name: 'admin',
+			permissions: {
+				connect: await prisma.permission.findMany({
+					select: { id: true },
+					where: { access: 'any' },
+				}),
+			},
+		},
+	})
+	await prisma.role.create({
+		data: {
+			name: 'user',
+			permissions: {
+				connect: await prisma.permission.findMany({
+					select: { id: true },
+					where: { access: 'own' },
+				}),
+			},
+		},
+	})
+	console.timeEnd('👑 Created roles...')
+}
+
+async function seedPermissions() {
+	console.time('🔑 Created permissions...')
+	const entities = [
+		'user',
+		'note',
+		'usersReviews',
+		'author',
+		'authorImage',
+		'link',
+		'book',
+		'bookImage',
+		'series',
+		'authorsBooks',
+		'authorsSeries',
+		'tag',
+		'tagsOnBooks',
+		'tagsOnSeries',
+		'notesOnAuthors',
+		'notesOnBooks',
+		'notesOnSeries',
+	]
+	const actions = ['create', 'read', 'update', 'delete']
+	const accesses = ['own', 'any'] as const
+	for (const entity of entities) {
+		for (const action of actions) {
+			for (const access of accesses) {
+				await prisma.permission.create({ data: { entity, action, access } })
+			}
+		}
+	}
+	console.timeEnd('🔑 Created permissions...')
+}
+
+async function seedBookImages(booksMapped: any) {
+	console.time('🔑 Created book images...')
+
+	if (!booksMapped) {
+		const books = await prisma.book.findMany({
+			select: { id: true, title: true },
+		})
+		booksMapped = books.reduce((a, v) => ({ ...a, [v.id]: v.title }), {})
+	}
+
+	const imagesPromises: any = {}
+	const pathToFolder = './tests/fixtures/images/books'
+	for (const file of readdirSync(pathToFolder)) {
+		const extension = extname(file)
+		const name = basename(file, extension)
+		const [bookId, size] = name.split('.')
+		if (booksMapped[bookId]) {
+			imagesPromises[[bookId, size]] = bookImg({
+				size,
+				altText: booksMapped[bookId].title,
+				filepath: join(pathToFolder, file),
+			})
+		}
+	}
+
+	const bookImages = await promiseHash(imagesPromises)
+	for (const [key, bookImage] of Object.entries(bookImages)) {
+		const [bookId, size] = key.split(',')
+		await prisma.book.update({
+			where: { id: bookId },
+			data: {
+				images: {
+					create: [bookImage],
+				},
+			},
+		})
+	}
+
+	console.timeEnd('🔑 Created book images...')
+}
+
+async function seed() {
+	console.log('🌱 Seeding...')
+	console.time(`🌱 Database has been seeded`)
+
+	// await cleanupDb(prisma)
+	// await seedPermissions()
+	// await seedRoles()
+	// await seedUsers()
+	// await seedKody()
+
+	let authorsMapped, seriesMapped, booksMapped
+	// authorsMapped = await seedAuthors()
+	// seriesMapped = await seedSeries(true)
+	// booksMapped = await seedBooks(seriesMapped)
+	// await seedKickstart()
+
+	await seedBookImages(booksMapped)
 
 	console.timeEnd(`🌱 Database has been seeded`)
 }

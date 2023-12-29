@@ -3,6 +3,7 @@
 
 generator client {
   provider = "prisma-client-js"
+  previewFeatures = ["fullTextSearch"]
 }
 
 datasource db {
@@ -24,9 +25,19 @@ model User {
   notes       Note[]
   reviews     UsersReviews[]
 
-  // createdBy String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model Ratings {
+  id      String  @id @default(cuid())
+  rating  Decimal
+  reviews Int
+
+  book     Book?   @relation(fields: [bookId], references: [id])
+  bookId   String? @unique
+  series   Series? @relation(fields: [seriesId], references: [id])
+  seriesId String? @unique
 }
 
 model UsersReviews {
@@ -36,8 +47,8 @@ model UsersReviews {
   bookId String
 
   rating   Int
-  review   String
-  dateRead DateTime @default(now())
+  review   String?
+  dateRead String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -52,12 +63,11 @@ model Author {
 
   links  Link[]
   images AuthorImage[]
-
   books  AuthorsBooks[]
   series AuthorsSeries[]
   notes  NotesOnAuthors[]
 
-  createdBy String
+  createdBy String   @default("System")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -69,9 +79,9 @@ model AuthorImage {
   blob        Bytes
 
   author   Author @relation(fields: [authorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  authorId String
+  authorId String @unique
 
-  createdBy String
+  createdBy String   @default("System")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -97,19 +107,20 @@ model Book {
   title       String
   description String
 
+  rating Ratings?
+
   isbn          String?
   isbn13        String?
   asin          String?
   pages         Int?
-  avgRating     Decimal
-  numRatings    Int
-  datePublished DateTime?
+  datePublished String?
+  grno          String
 
   links Link[]
 
   series         Series? @relation(fields: [seriesId], references: [id])
   seriesId       String?
-  seriesSequence String?
+  seriesSequence Int?
 
   authors AuthorsBooks[]
   tags    TagsOnBooks[]
@@ -117,8 +128,9 @@ model Book {
   notes   NotesOnBooks[]
   reviews UsersReviews[]
 
-  createdBy String
+  createdBy String   @default("System")
   createdAt DateTime @default(now())
+  updatedBy String   @default("System")
   updatedAt DateTime @updatedAt
 }
 
@@ -127,11 +139,12 @@ model BookImage {
   altText     String?
   contentType String
   blob        Bytes
+  size        String  @default("md")
 
   book   Book   @relation(fields: [bookId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   bookId String
 
-  createdBy String
+  createdBy String   @default("System")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -143,6 +156,8 @@ model Series {
   id   String @id @default(cuid())
   name String
 
+  rating Ratings?
+
   links Link[]
   books Book[]
 
@@ -150,21 +165,22 @@ model Series {
   authors AuthorsSeries[]
   notes   NotesOnSeries[]
 
-  createdBy String
+  createdBy String   @default("System")
   createdAt DateTime @default(now())
+  updatedBy String   @default("System")
   updatedAt DateTime @updatedAt
 }
 
 model AuthorsBooks {
   author   Author @relation(fields: [authorId], references: [id])
   authorId String
-  books    Book   @relation(fields: [booksId], references: [id])
-  booksId  String
+  book     Book   @relation(fields: [bookId], references: [id])
+  bookId   String
 
-  assignedBy String
+  assignedBy String   @default("System")
   assignedAt DateTime @default(now())
 
-  @@id([authorId, booksId])
+  @@id([authorId, bookId])
 }
 
 model AuthorsSeries {
@@ -173,19 +189,19 @@ model AuthorsSeries {
   series   Series @relation(fields: [seriesId], references: [id])
   seriesId String
 
-  assignedBy String
+  assignedBy String   @default("System")
   assignedAt DateTime @default(now())
 
   @@id([authorId, seriesId])
 }
 
 model Tag {
-  id           String         @id @default(cuid())
-  name         String
+  id String @id @default(cuid())
+
   tagsOnBooks  TagsOnBooks[]
   tagsOnSeries TagsOnSeries[]
 
-  createdBy String
+  createdBy String   @default("System")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -196,7 +212,7 @@ model TagsOnBooks {
   book   Book   @relation(fields: [bookId], references: [id])
   bookId String
 
-  assignedBy String
+  assignedBy String   @default("System")
   assignedAt DateTime @default(now())
 
   @@id([tagId, bookId])
@@ -208,7 +224,7 @@ model TagsOnSeries {
   series   Series @relation(fields: [seriesId], references: [id])
   seriesId String
 
-  assignedBy String
+  assignedBy String   @default("System")
   assignedAt DateTime @default(now())
 
   @@id([tagId, seriesId])
@@ -246,7 +262,6 @@ model NoteImage {
   note   Note   @relation(fields: [noteId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   noteId String
 
-  // createdBy String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

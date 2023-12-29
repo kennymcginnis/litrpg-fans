@@ -1,3 +1,5 @@
+import { type AuthorImage, type BookImage } from '@prisma/client'
+import { type SerializeFrom } from '@remix-run/node'
 import { useFormAction, useNavigation } from '@remix-run/react'
 import { clsx, type ClassValue } from 'clsx'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -7,6 +9,34 @@ import { extendedTheme } from './extended-theme.ts'
 
 export function getUserImgSrc(imageId?: string | null) {
 	return imageId ? `/resources/user-images/${imageId}` : '/img/user.png'
+}
+
+export function getBookImgSrc(imageId?: string | null) {
+	return imageId ? `/resources/book-images/${imageId}` : '/img/book.png'
+}
+
+export function getBookImgSrcClosestToSize(
+	images: SerializeFrom<BookImage>[],
+	size: string,
+) {
+	let sizes: any = images.reduce((a, v) => ({ ...a, [v.size]: v.id }), {})
+	if (sizes[size]) return `/resources/book-images/${sizes[size]}`
+	if (size === 'sm' && sizes.md) return `/resources/book-images/${sizes.md}`
+	for (const s of ['lg', 'md', 'sm']) {
+		if (sizes[s]) return `/resources/book-images/${sizes[s]}`
+	}
+	return '/img/book.png'
+}
+
+export function getAuthorImgSrc(images?: Array<AuthorImage>) {
+	if (images === null || images === undefined) return '/img/user.png'
+	if (images instanceof String) return `/resources/author-images/${images}`
+	if (Array.isArray(images)) {
+		const newest = images
+			.sort((a, b) => (b.updatedAt > a.updatedAt ? 1 : -1))
+			.shift()
+		return newest ? `/resources/author-images/${newest}` : '/img/user.png'
+	}
 }
 
 export function getNoteImgSrc(imageId: string) {

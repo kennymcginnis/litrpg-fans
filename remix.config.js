@@ -21,4 +21,5 @@ export default {
 			],
 		})
 	},
+	sourcemap: true,
 }

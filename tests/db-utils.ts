@@ -101,6 +101,23 @@ export async function getUserImages() {
 	return userImages
 }
 
+export async function bookImg({
+	altText,
+	filepath,
+	size,
+}: {
+	altText?: string
+	filepath: string
+	size: string
+}) {
+	return {
+		altText,
+		contentType: filepath.endsWith('.png') ? 'image/png' : 'image/jpeg',
+		blob: await fs.promises.readFile(filepath),
+		size,
+	}
+}
+
 export async function img({
 	altText,
 	filepath,
@@ -116,17 +133,19 @@ export async function img({
 }
 
 export async function cleanupDb(prisma: PrismaClient) {
+	console.time('🧹 Cleaned up the database...')
 	const tables = await prisma.$queryRaw<
-		{ name: string }[]
+	{ name: string }[]
 	>`SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_prisma_migrations';`
-
+	
 	await prisma.$transaction([
 		// Disable FK constraints to avoid relation conflicts during deletion
 		prisma.$executeRawUnsafe(`PRAGMA foreign_keys = OFF`),
 		// Delete all rows from each table, preserving table structures
 		...tables.map(({ name }) =>
-			prisma.$executeRawUnsafe(`DELETE from "${name}"`),
+		prisma.$executeRawUnsafe(`DELETE from "${name}"`),
 		),
 		prisma.$executeRawUnsafe(`PRAGMA foreign_keys = ON`),
 	])
+	console.timeEnd('🧹 Cleaned up the database...')
 }
